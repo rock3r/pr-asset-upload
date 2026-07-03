@@ -123,11 +123,12 @@ Use `X-Asset-Key` (the `public/...` or `private/...` path from a URL this token 
 received) to delete one asset — `404` if it doesn't exist. Only delete assets you or the user
 uploaded in this session — never delete on a guess.
 
-`X-Asset-Key-Prefix: public/` or `X-Asset-Key-Prefix: private/` bulk-deletes **every asset ever
-uploaded under that visibility, by anyone, not just this session** — there is no per-PR bulk
-delete, since PR numbers aren't part of the key. Do not use this unless a human has explicitly
-asked to wipe the whole store. If you need to clean up just what you uploaded for one PR, track
-the individual URLs yourself and delete them one at a time by exact key.
+`X-Asset-Delete-Mine: true` instead of a key deletes **every asset ever uploaded by this exact
+token** (scoped server-side to the token's identity — it can't reach assets uploaded by a
+different token). There is no per-PR bulk delete, since PR numbers aren't part of the key; if you
+need to clean up just what you uploaded for one PR, track the individual URLs yourself and delete
+them one at a time by exact key instead. Only use `X-Asset-Delete-Mine` when a human has
+explicitly asked to wipe everything this token uploaded — not as a routine cleanup step.
 
 ## Do not
 
