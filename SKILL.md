@@ -25,8 +25,13 @@ owner/repo/PR/filename is ever exposed in the URL itself, for either visibility.
 1. Confirm the file's mime type is one of: `image/png`, `image/jpeg`, `image/webp`, `image/gif`,
    `video/mp4`, `video/webm`. Anything else is rejected by the endpoint. Files over 50MB are
    rejected (`413`).
-2. Prefer animated WebP for inline demo previews (renders inline in GitHub like a GIF, much
-   smaller than MP4). Link an MP4/WebM alongside it as a fallback for viewers/tools that don't
+2. GitHub only renders images inline via markdown (`![alt](url)`) — an externally-hosted video is
+   never played inline no matter the format, it always renders as a plain clickable link. That's a
+   GitHub platform behavior, not something this pipeline can change. Animated WebP is the
+   practical workaround: it's an image format (so it renders inline like a GIF) but can still
+   carry a short demo recording — verified that GitHub's `camo` image proxy passes WebP through
+   byte-for-byte, animation intact, not stripped or re-encoded. Prefer animated WebP for inline
+   demo previews, and link an MP4/WebM alongside it as a fallback for viewers/tools that don't
    render WebP inline. Static screenshots should just be PNG/JPEG.
 3. Decide visibility:
    - `public` — the containing repo is public, or the asset is fine being reachable by anyone
