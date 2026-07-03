@@ -124,18 +124,21 @@ Authorization: Bearer <token>
 X-Asset-Key: public/9a54b794-bcda-4cc4-a9e5-5c1d9e1b2ff3.png
 ```
 
-Use `X-Asset-Key` (the `public/...` or `private/...` path from a URL this token previously
-received) to delete one asset — `404` if it doesn't exist. Only delete assets you or the user
-uploaded in this session — never delete on a guess.
+Every token has a role, `admin` or `normal`. A `normal` token can only delete assets it uploaded
+itself — deleting anyone else's key returns `404`, indistinguishable from that key never having
+existed. An `admin` token can delete anything, any label. You don't get to choose which role your
+token has; ask if you're not sure which one you were given.
+
+Use `X-Asset-Key` (the `public/...` or `private/...` path from a URL) to delete one asset — `404`
+if it doesn't exist, or if it exists but you (a `normal` token) don't own it. Only delete assets
+you or the user uploaded in this session — never delete on a guess.
 
 `X-Asset-Delete-Uploader: <label>` instead of a key deletes **every asset uploaded under that
-label** — your own, or another token's if you know its label (there's no per-token access
-boundary here; every token is equally trusted, and knowing the label is the gate, the same
-"unguessable, not authenticated" model this whole system uses). You almost certainly only know
-your own label. There is no per-PR bulk delete, since PR numbers aren't part of the key; if you
-need to clean up just what you uploaded for one PR, track the individual URLs yourself and delete
-them one at a time by exact key instead. Only use `X-Asset-Delete-Uploader` when a human has
-explicitly asked to wipe everything a given label uploaded — not as a routine cleanup step.
+label**. A `normal` token may only pass its own label (anything else is `403`). There is no
+per-PR bulk delete, since PR numbers aren't part of the key; if you need to clean up just what
+you uploaded for one PR, track the individual URLs yourself and delete them one at a time by
+exact key instead. Only use `X-Asset-Delete-Uploader` when a human has explicitly asked to wipe
+everything a label uploaded — not as a routine cleanup step, even for your own label.
 
 ## Do not
 
