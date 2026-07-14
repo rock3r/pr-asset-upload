@@ -140,6 +140,9 @@ you uploaded for one PR, track the individual URLs yourself and delete them one 
 exact key instead. Only use `X-Asset-Delete-Uploader` when a human has explicitly asked to wipe
 everything a label uploaded — not as a routine cleanup step, even for your own label.
 
+A deleted `public` URL can keep returning `200` for up to an hour afterward (Cloudflare's edge
+cache, not a failed delete) — don't retry a delete because the URL still loads right after.
+
 ## Do not
 
 - Do not upload files unrelated to the PR or demo in question.
