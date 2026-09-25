@@ -11,8 +11,12 @@ metadata:
 # PR Asset Upload
 
 Uploads a single image or video file to Cloudflare R2 via an authenticated HTTP endpoint and
-returns a URL to embed or link in a GitHub PR. Every asset key is an opaque UUID — no
+returns a URL to embed or link in a GitHub PR. By default every asset key is an opaque UUID — no
 owner/repo/PR/filename is ever exposed in the URL itself, for either visibility.
+
+There is one exception: a **stable URL**. Here the caller picks a name, and a later upload with
+the same name replaces the file at the same URL. Use it for files that a README or docs page links
+permanently and that CI refreshes. See "Stable URLs" below.
 
 ## When to use this
 
@@ -116,6 +120,68 @@ or invalid fields — e.g. `invalid_pr`, `allowed_origins_not_supported_for_publ
 `allowed_origins_required_for_private`; `401` bad token; `413` file too large; `415` unsupported
 content type). Report the `error` field back to the user rather than retrying blindly.
 
+## Stable URLs (overwrite in place)
+
+Use a stable URL when the same link must always show the latest version of a file. A typical case
+is a README preview that a CI job re-records on every release. Do not use it for PR screenshots:
+a PR should keep showing what it showed at review time, so use the normal UUID flow there.
+
+Add `X-Asset-Stable-Name` to a public upload:
+
+```
+POST https://static.sebastiano.dev/upload
+Authorization: Bearer <token>
+Content-Type: image/webp
+X-Asset-Visibility: public
+X-Asset-Owner: rock3r
+X-Asset-Repo: bioparco
+X-Asset-Stable-Name: grabby-stepper
+```
+
+The file is stored at `https://static.sebastiano.dev/stable/<token label>/<name>.<ext>`:
+
+- The **token label** is the namespace. The server takes it from your token, and you cannot
+  choose it. So a token can only create or overwrite stable files under its own label. This is
+  also true for `admin` tokens.
+- The **name** is `X-Asset-Stable-Name`. It may use lowercase letters, digits, `-` and `_`, and
+  `/` to make sub-folders (for example `specimens/grabby-stepper`). It must not include the file
+  extension. The maximum length is 128 characters.
+- The **extension** comes from `Content-Type`. So `grabby-stepper` uploaded as `image/webp` and
+  then as `video/mp4` gives two files, `grabby-stepper.webp` and `grabby-stepper.mp4`.
+
+Rules for stable uploads:
+
+- `X-Asset-Visibility` must be `public` (`400 stable_name_requires_public` otherwise).
+- `X-Asset-Owner` and `X-Asset-Repo` are required. They are stored as metadata only.
+  `X-Asset-Pr` is optional; if you send it, it must be numeric. `X-Asset-Name` is not used.
+- If your token's label is not a safe path segment (lowercase letters, digits, `-`, `_`), the
+  upload fails with `403 label_not_usable_as_namespace`. Ask the operator for a different token.
+
+The response is `201` when the file is new and `200` when it replaced an existing file:
+
+```json
+{ "url": "https://static.sebastiano.dev/stable/bioparco/grabby-stepper.webp", "replaced": true }
+```
+
+Example for a CI job:
+
+```bash
+curl -sS --fail-with-body -X POST "https://static.sebastiano.dev/upload" \
+  -H "Authorization: Bearer $STATIC_UPLOAD_TOKEN" \
+  -H "Content-Type: image/webp" \
+  -H "X-Asset-Visibility: public" \
+  -H "X-Asset-Owner: rock3r" \
+  -H "X-Asset-Repo: bioparco" \
+  -H "X-Asset-Stable-Name: grabby-stepper" \
+  --data-binary @grabby-stepper.webp
+```
+
+**How fast viewers see a new version.** Stable files are served with
+`Cache-Control: public, max-age=60, must-revalidate`. Caches that follow this header (Cloudflare's
+edge, browsers, and GitHub's image proxy) refresh within about one minute of an overwrite. The
+old version can show for longer in a viewer whose browser or network cache ignores these rules.
+The response `Content-Type` is the one you uploaded with (`image/webp`, `video/mp4`, ...).
+
 ## Deleting an asset
 
 ```
@@ -129,7 +195,7 @@ itself — deleting anyone else's key returns `404`, indistinguishable from that
 existed. An `admin` token can delete anything, any label. You don't get to choose which role your
 token has; ask if you're not sure which one you were given.
 
-Use `X-Asset-Key` (the `public/...` or `private/...` path from a URL) to delete one asset — `404`
+Use `X-Asset-Key` (the `public/...`, `private/...` or `stable/...` path from a URL) to delete one asset — `404`
 if it doesn't exist, or if it exists but you (a `normal` token) don't own it. Only delete assets
 you or the user uploaded in this session — never delete on a guess.
 
@@ -140,8 +206,9 @@ you uploaded for one PR, track the individual URLs yourself and delete them one 
 exact key instead. Only use `X-Asset-Delete-Uploader` when a human has explicitly asked to wipe
 everything a label uploaded — not as a routine cleanup step, even for your own label.
 
-A deleted `public` URL can keep returning `200` for up to an hour afterward (Cloudflare's edge
-cache, not a failed delete) — don't retry a delete because the URL still loads right after.
+A deleted `public` URL can keep returning `200` for up to an hour afterward, and a deleted stable
+URL for about a minute (Cloudflare's edge cache, not a failed delete) — don't retry a delete
+because the URL still loads right after.
 
 ## Do not
 
