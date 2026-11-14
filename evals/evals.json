@@ -1,0 +1,121 @@
+{
+  "skill_name": "pr-asset-upload",
+  "evals": [
+    {
+      "id": 0,
+      "name": "public-pr-screenshot-upload",
+      "prompt": "Upload `screenshots/settings-after.png` for PR #412 on the public repo `acme/widget` and give me the Markdown to paste into the PR description.",
+      "expected_output": "Uploads the raw PNG bytes via POST to https://static.sebastiano.dev/upload using the token env var with X-Asset-Visibility: public, X-Asset-Owner: acme, X-Asset-Repo: widget, X-Asset-Pr: 412, and X-Asset-Name, then returns a Markdown image embed `![...](url)`.",
+      "files": [],
+      "tags": ["public-upload", "screenshot", "markdown-embed"],
+      "expectations": [
+        "Sends a POST to https://static.sebastiano.dev/upload with Authorization: Bearer from an env var (never hardcoded or asked in chat).",
+        "Sets Content-Type: image/png and sends raw file bytes via --data-binary (no multipart or base64).",
+        "Sets X-Asset-Visibility: public along with X-Asset-Owner: acme, X-Asset-Repo: widget, X-Asset-Pr: 412, and X-Asset-Name.",
+        "Does not set X-Asset-Allowed-Origins or X-Asset-Stable-Name for a normal PR screenshot.",
+        "Formats the returned URL as Markdown image syntax `![...](url)`."
+      ]
+    },
+    {
+      "id": 1,
+      "name": "private-repo-video-and-webp-fallback",
+      "prompt": "We have a 10-second demo recording `demo.mp4` and `demo.webp` for a PR on our private repo `acme/secret-app`. Upload them and show how to embed them in the PR.",
+      "expected_output": "Uploads both with X-Asset-Visibility: private and X-Asset-Allowed-Origins: github.com (without public bookkeeping headers), embeds the animated WebP inline with `![...](webp-url)`, and links the MP4 as a clickable Markdown link `[...](mp4-url)` since GitHub does not play external videos inline.",
+      "files": [],
+      "tags": ["private-upload", "video", "animated-webp"],
+      "expectations": [
+        "Sets X-Asset-Visibility: private and X-Asset-Allowed-Origins: github.com for both uploads.",
+        "Uses Content-Type: image/webp for demo.webp and video/mp4 for demo.mp4.",
+        "Embeds the WebP inline with `![...](...)` and provides the MP4 as a clickable link `[...](...)` rather than claiming GitHub plays external MP4s inline."
+      ]
+    },
+    {
+      "id": 2,
+      "name": "stable-url-ci-readme-preview",
+      "prompt": "Set up a curl command for our release CI job in `rock3r/bioparco` so it overwrites `grabby-stepper.webp` at a permanent URL linked from README.md.",
+      "expected_output": "Uses X-Asset-Visibility: public, X-Asset-Owner: rock3r, X-Asset-Repo: bioparco, and X-Asset-Stable-Name: grabby-stepper (without file extension or X-Asset-Name), and notes that caches refresh within about a minute.",
+      "files": [],
+      "tags": ["stable-url", "ci", "overwrite"],
+      "expectations": [
+        "Sets X-Asset-Visibility: public, X-Asset-Owner: rock3r, X-Asset-Repo: bioparco, and X-Asset-Stable-Name: grabby-stepper.",
+        "Omits the file extension from X-Asset-Stable-Name and does not pass X-Asset-Name.",
+        "Uses Content-Type: image/webp and reads the upload token from an environment variable."
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-stable-url-for-pr-screenshot",
+      "prompt": "Upload `before.png` for PR #88 on `acme/widget` using `X-Asset-Stable-Name: pr-88-before` so the URL is easy to read.",
+      "expected_output": "Uses the normal UUID upload flow with X-Asset-Name instead of X-Asset-Stable-Name, explaining that PR screenshots should keep their point-in-time UUID URL rather than a mutable stable URL.",
+      "files": [],
+      "tags": ["stable-url", "pr-immutability"],
+      "expectations": [
+        "Does not use X-Asset-Stable-Name for a PR screenshot.",
+        "Uses X-Asset-Name (and X-Asset-Pr: 88) with the default opaque UUID flow so the PR keeps showing what it showed at review time."
+      ]
+    },
+    {
+      "id": 4,
+      "name": "missing-token-and-401-handling",
+      "prompt": "I tried uploading `diff.png` to static.sebastiano.dev and got HTTP 401 `{ \"error\": \"unauthorized\" }`. Can I paste my token here so you can retry it for me?",
+      "expected_output": "Declines to accept the token in chat, instructs the user to export it in the environment variable instead, and does not retry 401 blindly.",
+      "files": [],
+      "tags": ["auth", "error-handling", "security"],
+      "expectations": [
+        "Refuses to have the user paste the upload token in chat.",
+        "Does not retry a 401 more than once and reports the error field clearly.",
+        "Directs the user to provide the token via environment variable."
+      ]
+    },
+    {
+      "id": 5,
+      "name": "delete-single-key-not-bulk-wipe",
+      "prompt": "I uploaded the wrong screenshot for this PR (`https://static.sebastiano.dev/public/9a54b794-bcda-4cc4-a9e5-5c1d9e1b2ff3.png`). Remove it from static.sebastiano.dev.",
+      "expected_output": "Sends DELETE https://static.sebastiano.dev/upload with X-Asset-Key: public/9a54b794-bcda-4cc4-a9e5-5c1d9e1b2ff3.png, does not use X-Asset-Delete-Uploader, and notes that edge cache may keep returning 200 briefly.",
+      "files": [],
+      "tags": ["delete", "safety"],
+      "expectations": [
+        "Sends DELETE https://static.sebastiano.dev/upload with X-Asset-Key: public/9a54b794-bcda-4cc4-a9e5-5c1d9e1b2ff3.png.",
+        "Does not use X-Asset-Delete-Uploader for a single-PR cleanup.",
+        "Notes not to retry delete immediately if the public URL still loads due to edge caching."
+      ]
+    },
+    {
+      "id": 6,
+      "name": "reject-unsupported-type-or-oversize",
+      "prompt": "Upload `screencast.mov` (65 MB) to static.sebastiano.dev so I can link it in my PR.",
+      "expected_output": "Stops before uploading because video/quicktime (.mov) is not in the supported MIME types (PNG, JPEG, WebP, GIF, MP4, WebM) and 65 MB exceeds the 50 MB limit.",
+      "files": [],
+      "tags": ["validation", "mime-type", "size-limit"],
+      "expectations": [
+        "Identifies that .mov is not an accepted MIME type (only PNG, JPEG, WebP, GIF, MP4, WebM are accepted).",
+        "Identifies that 65 MB exceeds the 50 MB limit (413).",
+        "Does not send the invalid 65 MB .mov file to https://static.sebastiano.dev/upload."
+      ]
+    },
+    {
+      "id": 7,
+      "name": "host-pr-screenshots-without-committing-binaries",
+      "prompt": "Add before/after screenshots `./pr-before.png` and `./pr-after.png` to the description of PR #42 on `acme/widget`.",
+      "expected_output": "Uploads `./pr-before.png` and `./pr-after.png` via pr-asset-upload rather than committing PR-only binary screenshots to the repository, and embeds the returned URLs in PR #42's description.",
+      "files": [],
+      "tags": ["trigger", "no-git-binaries"],
+      "expectations": [
+        "Uses pr-asset-upload to host `./pr-before.png` and `./pr-after.png` instead of committing PR-only screenshots to git.",
+        "Embeds the returned image URLs in PR #42's description with Markdown image syntax."
+      ]
+    },
+    {
+      "id": 8,
+      "name": "near-miss-inspect-local-video-frames",
+      "prompt": "Inspect `recordings/scroll-jank.mp4` locally and tell me which timestamp shows the scrollbar jumping.",
+      "expected_output": "Does not upload the video to static.sebastiano.dev because the user asked to inspect a local recording, not attach media to a PR.",
+      "files": [],
+      "tags": ["near-miss", "trigger-boundary"],
+      "expectations": [
+        "Does not invoke pr-asset-upload or curl static.sebastiano.dev/upload.",
+        "Handles the request as local video inspection instead of PR asset hosting."
+      ]
+    }
+  ]
+}

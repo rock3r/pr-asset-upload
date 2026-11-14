@@ -1,9 +1,11 @@
 ---
 name: pr-asset-upload
-description: Upload a screenshot or short demo clip (PNG, JPEG, WebP, GIF, MP4, or WebM) to static.sebastiano.dev and get back a URL to hotlink in a GitHub PR description or comment. Use whenever a PR needs a before/after screenshot, UI diff image, or a short demo recording embedded or linked instead of committed to the repository.
+description: Upload a screenshot or short demo clip (PNG, JPEG, WebP, GIF, MP4, or WebM) to static.sebastiano.dev for a GitHub PR description or comment. Use when a PR needs a before/after screenshot, UI diff image, or demo recording hosted instead of committed to the repository.
 license: MIT
 compatibility: Requires outbound network access to https://static.sebastiano.dev and a valid upload token available as an environment variable.
 metadata:
+  version: "1.1.0"
+  author: "Sebastiano Poggi"
   owner: seb
   endpoint: https://static.sebastiano.dev/upload
 ---
@@ -18,25 +20,17 @@ There is one exception: a **stable URL**. Here the caller picks a name, and a la
 the same name replaces the file at the same URL. Use it for files that a README or docs page links
 permanently and that CI refreshes. See "Stable URLs" below.
 
-## When to use this
-
-- The user asks to attach a screenshot, before/after comparison, or short demo clip to a GitHub PR.
-- A PR description or comment needs an externally-hosted image/video URL instead of committing
-  the file to the reviewed repository.
-
 ## Before you upload
 
 1. Confirm the file's mime type is one of: `image/png`, `image/jpeg`, `image/webp`, `image/gif`,
    `video/mp4`, `video/webm`. Anything else is rejected by the endpoint. Files over 50MB are
    rejected (`413`).
 2. GitHub only renders images inline via markdown (`![alt](url)`) — an externally-hosted video is
-   never played inline no matter the format, it always renders as a plain clickable link. That's a
-   GitHub platform behavior, not something this pipeline can change. Animated WebP is the
-   practical workaround: it's an image format (so it renders inline like a GIF) but can still
-   carry a short demo recording — verified that GitHub's `camo` image proxy passes WebP through
-   byte-for-byte, animation intact, not stripped or re-encoded. Prefer animated WebP for inline
-   demo previews, and link an MP4/WebM alongside it as a fallback for viewers/tools that don't
-   render WebP inline. Static screenshots should just be PNG/JPEG.
+   never played inline no matter the format, and always renders as a plain clickable link
+   (`[Demo](url)`). Animated WebP is the practical workaround: it's an image format (so it renders
+   inline like a GIF, and GitHub's `camo` proxy passes it through intact) while carrying a short
+   demo recording. Prefer animated WebP for inline demo previews, and link an MP4/WebM alongside it
+   as a fallback. Static screenshots should be PNG/JPEG.
 3. Decide visibility:
    - `public` — the containing repo is public, or the asset is fine being reachable by anyone
      with the link, no restriction. Requires owner/repo/PR number/name (see below) for
@@ -52,7 +46,7 @@ permanently and that CI refreshes. See "Stable URLs" below.
 
 ## Request
 
-```
+```http
 POST https://static.sebastiano.dev/upload
 Authorization: Bearer <token>
 Content-Type: <mime type of the file>
@@ -128,7 +122,7 @@ a PR should keep showing what it showed at review time, so use the normal UUID f
 
 Add `X-Asset-Stable-Name` to a public upload:
 
-```
+```http
 POST https://static.sebastiano.dev/upload
 Authorization: Bearer <token>
 Content-Type: image/webp
@@ -184,7 +178,7 @@ The response `Content-Type` is the one you uploaded with (`image/webp`, `video/m
 
 ## Deleting an asset
 
-```
+```http
 DELETE https://static.sebastiano.dev/upload
 Authorization: Bearer <token>
 X-Asset-Key: public/9a54b794-bcda-4cc4-a9e5-5c1d9e1b2ff3.png
